@@ -147,6 +147,11 @@ async def download_video(url: str) -> tuple[Optional[str], Optional[str], Option
     """Download video using yt-dlp with retry logic. Returns (small_path, medium_path, original_path)"""
     print(f"Starting download for URL: {url}")
     
+    # Add a delay before every download to avoid rapid requests
+    DOWNLOAD_DELAY_SECONDS = 2  # You can adjust this value as needed
+    print(f"Delaying {DOWNLOAD_DELAY_SECONDS} seconds before download to avoid rapid requests...")
+    await asyncio.sleep(DOWNLOAD_DELAY_SECONDS)
+    
     # --- Select cookies file based on URL ---
     cookies_path = None
     if 'youtube.com' in url or 'youtu.be' in url:
@@ -171,7 +176,8 @@ async def download_video(url: str) -> tuple[Optional[str], Optional[str], Option
         'quiet': False,
         'no_warnings': False,
         'merge_output_format': 'mp4',
-        'verbose': True  # Add verbose output for debugging
+        'verbose': True,  # Add verbose output for debugging
+        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.70 Safari/537.36',
     }
     # --- Add cookies file to yt-dlp options if available ---
     if cookies_path:
