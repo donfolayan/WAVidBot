@@ -23,6 +23,10 @@ WHATSAPP_TOKEN = os.getenv('WHATSAPP_TOKEN', '').strip()  # Strip whitespace on 
 if not WHATSAPP_TOKEN:
     raise ValueError("WHATSAPP_TOKEN environment variable is required")
 
+# --- Add cookies path config ---
+YOUTUBE_COOKIES_PATH = os.getenv('YOUTUBE_COOKIES_PATH')
+FACEBOOK_COOKIES_PATH = os.getenv('FACEBOOK_COOKIES_PATH')
+
 print("\nDEBUG: Token loaded:", WHATSAPP_TOKEN[:20] + "..." + WHATSAPP_TOKEN[-20:])
 print(f"DEBUG: Full token length: {len(WHATSAPP_TOKEN)}")
 
@@ -134,6 +138,17 @@ async def download_video(url: str) -> tuple[Optional[str], Optional[str], Option
             print(f"Error resolving Facebook share URL: {str(e)}")
             return None, None, None
     
+    # --- Select cookies file based on URL ---
+    cookies_path = None
+    if 'youtube.com' in url or 'youtu.be' in url:
+        cookies_path = YOUTUBE_COOKIES_PATH
+        if cookies_path:
+            print(f"Using YouTube cookies: {cookies_path}")
+    elif 'facebook.com' in url:
+        cookies_path = FACEBOOK_COOKIES_PATH
+        if cookies_path:
+            print(f"Using Facebook cookies: {cookies_path}")
+
     # First download the original version
     original_opts = {
         'format': 'best[ext=mp4]/bestvideo[ext=mp4]+bestaudio[ext=m4a]/best',
@@ -143,6 +158,9 @@ async def download_video(url: str) -> tuple[Optional[str], Optional[str], Option
         'merge_output_format': 'mp4',
         'verbose': True  # Add verbose output for debugging
     }
+    # --- Add cookies file to yt-dlp options if available ---
+    if cookies_path:
+        original_opts['cookiefile'] = cookies_path
     
     original_path = None
     medium_path = None
