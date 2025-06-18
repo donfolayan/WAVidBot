@@ -255,63 +255,98 @@ async def download_video(url: str) -> tuple[Optional[str], Optional[str], Option
                         print(f"Original download completed: {original_path} (Size: {orig_size:.2f} MB)")
                         
                         if FFMPEG_PATH:
-                            # Create medium quality version (720p)
-                            try:
-                                medium_filename = f"medium_{sanitized_title}_{timestamp}.mp4"
-                                medium_path = os.path.join('downloads', medium_filename)
-                                print("Creating medium quality version (720p)...")
-                                medium_cmd = [
-                                    FFMPEG_PATH,
-                                    '-i', original_path,
-                                    '-vf', 'scale=-2:720',  # 720p
-                                    '-c:v', 'libx264',      # Video codec
-                                    '-crf', '23',           # Quality (lower = better, 18-28 is good)
-                                    '-preset', 'medium',     # Encoding speed preset
-                                    '-c:a', 'aac',          # Audio codec
-                                    '-b:a', '128k',         # Audio bitrate
-                                    '-y',                    # Overwrite output
-                                    medium_path
-                                ]
-                                process = await asyncio.create_subprocess_exec(
-                                    *medium_cmd,
-                                    stdout=asyncio.subprocess.PIPE,
-                                    stderr=asyncio.subprocess.PIPE
-                                )
-                                await process.communicate()
-                                if os.path.exists(medium_path):
-                                    med_size = os.path.getsize(medium_path) / (1024 * 1024)
-                                    print(f"Medium version completed: {medium_path} (Size: {med_size:.2f} MB)")
-                            except Exception as e:
-                                print(f"Error creating medium version: {str(e)}")
-                            
-                            # Create small version (480p)
-                            try:
-                                small_filename = f"small_{sanitized_title}_{timestamp}.mp4"
-                                small_path = os.path.join('downloads', small_filename)
-                                print("Creating small quality version (480p)...")
-                                small_cmd = [
-                                    FFMPEG_PATH,
-                                    '-i', original_path,
-                                    '-vf', 'scale=-2:480',  # 480p
-                                    '-c:v', 'libx264',      # Video codec
-                                    '-crf', '28',           # Quality (lower = better, 18-28 is good)
-                                    '-preset', 'medium',     # Encoding speed preset
-                                    '-c:a', 'aac',          # Audio codec
-                                    '-b:a', '96k',          # Audio bitrate
-                                    '-y',                    # Overwrite output
-                                    small_path
-                                ]
-                                process = await asyncio.create_subprocess_exec(
-                                    *small_cmd,
-                                    stdout=asyncio.subprocess.PIPE,
-                                    stderr=asyncio.subprocess.PIPE
-                                )
-                                await process.communicate()
-                                if os.path.exists(small_path):
-                                    small_size = os.path.getsize(small_path) / (1024 * 1024)
-                                    print(f"Small version completed: {small_path} (Size: {small_size:.2f} MB)")
-                            except Exception as e:
-                                print(f"Error creating small version: {str(e)}")
+                            # Skip quality conversion for very large videos to prevent timeouts
+                            if orig_size > 100:  # Skip conversion for videos over 100MB
+                                print(f"Video is very large ({orig_size:.2f} MB). Skipping quality conversion to prevent timeouts.")
+                                print("Only original quality will be available for download.")
+                            else:
+                                # Create medium quality version (720p)
+                                try:
+                                    medium_filename = f"medium_{sanitized_title}_{timestamp}.mp4"
+                                    medium_path = os.path.join('downloads', medium_filename)
+                                    print("Creating medium quality version (720p)...")
+                                    medium_cmd = [
+                                        FFMPEG_PATH,
+                                        '-i', original_path,
+                                        '-vf', 'scale=-2:720',  # 720p
+                                        '-c:v', 'libx264',      # Video codec
+                                        '-crf', '23',           # Quality (lower = better, 18-28 is good)
+                                        '-preset', 'medium',     # Encoding speed preset
+                                        '-c:a', 'aac',          # Audio codec
+                                        '-b:a', '128k',         # Audio bitrate
+                                        '-y',                    # Overwrite output
+                                        medium_path
+                                    ]
+                                    print(f"Running ffmpeg command: {' '.join(medium_cmd)}")
+                                    process = await asyncio.create_subprocess_exec(
+                                        *medium_cmd,
+                                        stdout=asyncio.subprocess.PIPE,
+                                        stderr=asyncio.subprocess.PIPE
+                                    )
+                                    try:
+                                        stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=300)  # 5 minute timeout
+                                        print(f"Medium ffmpeg process completed with return code: {process.returncode}")
+                                        if stderr:
+                                            print(f"Medium ffmpeg stderr: {stderr.decode()}")
+                                        if os.path.exists(medium_path):
+                                            med_size = os.path.getsize(medium_path) / (1024 * 1024)
+                                            print(f"Medium version completed: {medium_path} (Size: {med_size:.2f} MB)")
+                                        else:
+                                            print(f"Medium version file not created. Return code: {process.returncode}")
+                                    except asyncio.TimeoutError:
+                                        print("Medium ffmpeg process timed out after 5 minutes")
+                                        process.kill()
+                                        await process.wait()
+                                except Exception as e:
+                                    print(f"Error creating medium version: {str(e)}")
+                                    import traceback
+                                    print(f"Medium version traceback: {traceback.format_exc()}")
+                                
+                                # Create small version (480p)
+                                try:
+                                    small_filename = f"small_{sanitized_title}_{timestamp}.mp4"
+                                    small_path = os.path.join('downloads', small_filename)
+                                    print("Creating small quality version (480p)...")
+                                    small_cmd = [
+                                        FFMPEG_PATH,
+                                        '-i', original_path,
+                                        '-vf', 'scale=-2:480',  # 480p
+                                        '-c:v', 'libx264',      # Video codec
+                                        '-crf', '28',           # Quality (lower = better, 18-28 is good)
+                                        '-preset', 'medium',     # Encoding speed preset
+                                        '-c:a', 'aac',          # Audio codec
+                                        '-b:a', '96k',          # Audio bitrate
+                                        '-y',                    # Overwrite output
+                                        small_path
+                                    ]
+                                    print(f"Running ffmpeg command: {' '.join(small_cmd)}")
+                                    process = await asyncio.create_subprocess_exec(
+                                        *small_cmd,
+                                        stdout=asyncio.subprocess.PIPE,
+                                        stderr=asyncio.subprocess.PIPE
+                                    )
+                                    try:
+                                        stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=300)  # 5 minute timeout
+                                        print(f"Small ffmpeg process completed with return code: {process.returncode}")
+                                        if stderr:
+                                            print(f"Small ffmpeg stderr: {stderr.decode()}")
+                                        if os.path.exists(small_path):
+                                            small_size = os.path.getsize(small_path) / (1024 * 1024)
+                                            print(f"Small version completed: {small_path} (Size: {small_size:.2f} MB)")
+                                        else:
+                                            print(f"Small version file not created. Return code: {process.returncode}")
+                                    except asyncio.TimeoutError:
+                                        print("Small ffmpeg process timed out after 5 minutes")
+                                        process.kill()
+                                        await process.wait()
+                                    except Exception as e:
+                                        print(f"Error creating small version: {str(e)}")
+                                    import traceback
+                                    print(f"Small version traceback: {traceback.format_exc()}")
+                                except Exception as e:
+                                    print(f"Error creating small version: {str(e)}")
+                                    import traceback
+                                    print(f"Small version traceback: {traceback.format_exc()}")
             except yt_dlp.utils.DownloadError as e:
                 print(f"yt-dlp download error: {str(e)}")
                 if "requested format not available" in str(e).lower():
