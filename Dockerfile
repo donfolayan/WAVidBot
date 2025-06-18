@@ -21,7 +21,7 @@ RUN pip install --no-cache-dir --upgrade pip && \
 ENV FFMPEG_PATH=ffmpeg
 
 # Expose the port FastAPI will run on
-EXPOSE 8000
+EXPOSE ${PORT:-8000}
 
 # Command to run the app
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "${PORT}"]
+CMD uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}
