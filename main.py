@@ -23,7 +23,6 @@ WHATSAPP_TOKEN = os.getenv('WHATSAPP_TOKEN', '').strip()  # Strip whitespace on 
 if not WHATSAPP_TOKEN:
     raise ValueError("WHATSAPP_TOKEN environment variable is required")
 
-# --- Add cookies path config ---
 YOUTUBE_COOKIES_PATH = os.getenv('YOUTUBE_COOKIES_PATH')
 FACEBOOK_COOKIES_PATH = os.getenv('FACEBOOK_COOKIES_PATH')
 
