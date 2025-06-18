@@ -13,13 +13,13 @@ from fastapi.responses import FileResponse, HTMLResponse
 from urllib.parse import quote
 from datetime import datetime, timedelta
 import re
-import uuid  # Add this at the top with other imports
+import http.cookiejar
 
 # Load environment variables
 load_dotenv()
 
 # Configuration
-WHATSAPP_TOKEN = os.getenv('WHATSAPP_TOKEN', '').strip()  # Strip whitespace on load
+WHATSAPP_TOKEN = os.getenv('WHATSAPP_TOKEN', '').strip()
 if not WHATSAPP_TOKEN:
     raise ValueError("WHATSAPP_TOKEN environment variable is required")
 
@@ -33,13 +33,13 @@ app = FastAPI()
 
 # Other configuration
 VERIFY_TOKEN = os.getenv('VERIFY_TOKEN', 'wa_downloader_test_token')
-WHATSAPP_API_URL = "https://graph.facebook.com/v16.0"  # Try older API version
+WHATSAPP_API_URL = "https://graph.facebook.com/v16.0"
 PHONE_NUMBER_ID = os.getenv('WHATSAPP_PHONE_NUMBER_ID')
 MAX_RETRIES = 3
 RETRY_DELAY = 2  # seconds
-BASE_URL = os.getenv('BASE_URL', 'http://localhost:8000')  # Set this to your public URL in production
-FILE_RETENTION_HOURS = 24  # How long to keep downloaded files
-FFMPEG_PATH = os.getenv('FFMPEG_PATH', 'ffmpeg')  # Use system ffmpeg or env override
+BASE_URL = os.getenv('BASE_URL', 'http://localhost:8000')
+FILE_RETENTION_HOURS = 24 
+FFMPEG_PATH = os.getenv('FFMPEG_PATH', 'ffmpeg')
 
 # Message deduplication
 message_cache = {}
@@ -117,25 +117,35 @@ def sanitize_filename(filename: str) -> str:
     filename = f"{filename}_{timestamp}"
     return filename.strip()
 
+def resolve_facebook_share(url, cookies_path=None):
+    """Resolve a Facebook share URL to the final destination using browser headers and cookies."""
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.70 Safari/537.36",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    }
+    cookies = None
+    if cookies_path and os.path.exists(cookies_path):
+        cj = http.cookiejar.MozillaCookieJar()
+        try:
+            cj.load(cookies_path, ignore_discard=True, ignore_expires=True)
+            cookies = {c.name: c.value for c in cj}
+        except Exception as e:
+            print(f"Warning: Could not load cookies from {cookies_path}: {e}")
+    try:
+        response = requests.get(url, headers=headers, cookies=cookies, allow_redirects=True, timeout=10)
+        # Check for login or bot challenge in response
+        if 'login' in response.url or 'checkpoint' in response.url or 'robot' in response.text.lower():
+            print(f"Warning: Facebook may be showing a login or bot challenge page: {response.url}")
+        return response.url
+    except Exception as e:
+        print(f"Error resolving Facebook share URL: {str(e)}")
+        return url
+
 @with_retries()
 async def download_video(url: str) -> tuple[Optional[str], Optional[str], Optional[str]]:
     """Download video using yt-dlp with retry logic. Returns (small_path, medium_path, original_path)"""
     print(f"Starting download for URL: {url}")
-    
-    # Handle Facebook share URLs
-    if 'facebook.com/share' in url:
-        print("Detected Facebook share URL - attempting to resolve...")
-        try:
-            response = requests.get(url, allow_redirects=True)
-            if response.status_code == 200:
-                url = response.url
-                print(f"Resolved share URL to: {url}")
-            else:
-                print(f"Failed to resolve share URL. Status code: {response.status_code}")
-                return None, None, None
-        except Exception as e:
-            print(f"Error resolving Facebook share URL: {str(e)}")
-            return None, None, None
     
     # --- Select cookies file based on URL ---
     cookies_path = None
@@ -147,6 +157,12 @@ async def download_video(url: str) -> tuple[Optional[str], Optional[str], Option
         cookies_path = FACEBOOK_COOKIES_PATH
         if cookies_path:
             print(f"Using Facebook cookies: {cookies_path}")
+
+    # Handle Facebook share URLs
+    if 'facebook.com/share' in url:
+        print("Detected Facebook share URL - attempting to resolve...")
+        url = resolve_facebook_share(url, cookies_path)
+        print(f"Resolved share URL to: {url}")
 
     # First download the original version
     original_opts = {
