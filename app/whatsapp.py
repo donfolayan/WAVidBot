@@ -12,17 +12,18 @@ def upload_media(file_path: str):
         url = f"{WHATSAPP_API_URL}/{PHONE_NUMBER_ID}/media"
         headers = {
             "Authorization": f"Bearer {WHATSAPP_TOKEN}",
-            "Content-Type": "application/json"
         }
         
         print(f"📤 Uploading file: {file_path}")
         print(f"🌐 Upload URL: {url}")
         
         with open(file_path, "rb") as file:
-            files = {"file": file}
-            data = {"messaging_product": "whatsapp"}
+            files = {
+                "file": file,
+                "messaging_product": (None, "whatsapp")
+            }
             
-            response = requests.post(url, headers=headers, files=files, data=data, timeout=120)
+            response = requests.post(url, headers=headers, files=files, timeout=120)
             
             print(f"📡 Upload response status: {response.status_code}")
             
