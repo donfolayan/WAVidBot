@@ -3,6 +3,6 @@ uvicorn
 python-dotenv
 pydantic
 requests
-python-decouple
 yt-dlp
 ffmpeg-python
+cloudinary

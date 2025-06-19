@@ -14,12 +14,16 @@ from urllib.parse import quote
 from datetime import datetime, timedelta
 import re
 import http.cookiejar
+from app.utils import setup_cookies
+from app.endpoints import router
+from config import BASE_URL
 
 # Load environment variables
 load_dotenv()
 
 # Configuration
 WHATSAPP_TOKEN = os.getenv('WHATSAPP_TOKEN', '').strip()
+print(WHATSAPP_TOKEN)
 if not WHATSAPP_TOKEN:
     raise ValueError("WHATSAPP_TOKEN environment variable is required")
 
@@ -53,12 +57,12 @@ def setup_cookies():
     return youtube_path, facebook_path
 
 # Create cookies files at startup
-YOUTUBE_COOKIES_PATH, FACEBOOK_COOKIES_PATH = setup_cookies()
+youtube_cookies_path, facebook_cookies_path = setup_cookies()
 
 print("\nDEBUG: Token loaded:", WHATSAPP_TOKEN[:20] + "..." + WHATSAPP_TOKEN[-20:])
 print(f"DEBUG: Full token length: {len(WHATSAPP_TOKEN)}")
-print(f"DEBUG: YouTube cookies path: {YOUTUBE_COOKIES_PATH}")
-print(f"DEBUG: Facebook cookies path: {FACEBOOK_COOKIES_PATH}")
+print(f"DEBUG: YouTube cookies path: {youtube_cookies_path}")
+print(f"DEBUG: Facebook cookies path: {facebook_cookies_path}")
 
 app = FastAPI()
 
@@ -68,7 +72,6 @@ WHATSAPP_API_URL = "https://graph.facebook.com/v16.0"
 PHONE_NUMBER_ID = os.getenv('WHATSAPP_PHONE_NUMBER_ID')
 MAX_RETRIES = 3
 RETRY_DELAY = 2  # seconds
-BASE_URL = os.getenv('BASE_URL', 'http://localhost:8000')
 FILE_RETENTION_HOURS = 24 
 FFMPEG_PATH = os.getenv('FFMPEG_PATH', 'ffmpeg')
 
@@ -186,11 +189,11 @@ async def download_video(url: str) -> tuple[Optional[str], Optional[str], Option
     # --- Select cookies file based on URL ---
     cookies_path = None
     if 'youtube.com' in url or 'youtu.be' in url:
-        cookies_path = YOUTUBE_COOKIES_PATH
+        cookies_path = youtube_cookies_path
         if cookies_path:
             print(f"Using YouTube cookies: {cookies_path}")
     elif 'facebook.com' in url:
-        cookies_path = FACEBOOK_COOKIES_PATH
+        cookies_path = facebook_cookies_path
         if cookies_path:
             print(f"Using Facebook cookies: {cookies_path}")
 
@@ -709,146 +712,14 @@ os.makedirs("downloads", exist_ok=True)
 # Mount the downloads directory
 app.mount("/downloads", StaticFiles(directory="downloads"), name="downloads")
 
-@app.get("/downloads/{filename:path}")
-async def download_page(filename: str):
-    """Serve a download page with button"""
-    file_path = os.path.join("downloads", filename)
-    if os.path.exists(file_path):
-        # Get the file size for display
-        size_mb = os.path.getsize(file_path) / (1024 * 1024)
-        
-        # Create an HTML page with download button
-        html_content = f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Download Video</title>
-            <style>
-                body {{
-                    font-family: Arial, sans-serif;
-                    margin: 0;
-                    padding: 20px;
-                    display: flex;
-                    flex-direction: column;
-                    align-items: center;
-                    justify-content: center;
-                    min-height: 90vh;
-                    background-color: #f0f2f5;
-                }}
-                .container {{
-                    background: white;
-                    padding: 20px;
-                    border-radius: 10px;
-                    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-                    text-align: center;
-                    max-width: 90%;
-                    width: 500px;
-                }}
-                h1 {{
-                    color: #1a73e8;
-                    font-size: 24px;
-                    margin-bottom: 20px;
-                }}
-                .info {{
-                    color: #5f6368;
-                    margin-bottom: 20px;
-                }}
-                .download-btn {{
-                    background-color: #1a73e8;
-                    color: white;
-                    padding: 12px 24px;
-                    border: none;
-                    border-radius: 5px;
-                    font-size: 16px;
-                    cursor: pointer;
-                    text-decoration: none;
-                    display: inline-block;
-                    margin-top: 10px;
-                }}
-                .download-btn:hover {{
-                    background-color: #1557b0;
-                }}
-            </style>
-        </head>
-        <body>
-            <div class="container">
-                <h1>Your Video is Ready!</h1>
-                <div class="info">
-                    <p>Filename: {filename}</p>
-                    <p>Size: {size_mb:.1f} MB</p>
-                </div>
-                <a href="/direct-download/{quote(filename)}" class="download-btn">
-                    Download Video
-                </a>
-            </div>
-        </body>
-        </html>
-        """
-        return HTMLResponse(content=html_content)
-    return {"error": "File not found"}, 404
+# Include API routes
+app.include_router(router)
 
-@app.get("/direct-download/{filename:path}")
-async def direct_download(filename: str):
-    """Handle the actual file download"""
-    file_path = os.path.join("downloads", filename)
-    if os.path.exists(file_path):
-        # Force download with application/octet-stream
-        headers = {
-            "Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}",
-            "Content-Type": "application/octet-stream",  # Force download instead of play
-            "Content-Length": str(os.path.getsize(file_path))
-        }
-        return FileResponse(
-            file_path,
-            headers=headers,
-            filename=filename
-        )
-    return {"error": "File not found"}, 404
-
-@app.get("/terms", response_class=HTMLResponse)
-async def terms_page():
-    terms_path = os.path.join("legal", "terms.html")
-    if os.path.exists(terms_path):
-        with open(terms_path, encoding="utf-8") as f:
-            return HTMLResponse(content=f.read())
-    return {"error": "Terms and Conditions not found"}, 404
-
-@app.get("/privacy", response_class=HTMLResponse)
-async def privacy_page():
-    privacy_path = os.path.join("legal", "privacy.html")
-    if os.path.exists(privacy_path):
-        with open(privacy_path, encoding="utf-8") as f:
-            return HTMLResponse(content=f.read())
-    return {"error": "Privacy Policy not found"}, 404
-
-# Add a test endpoint
-@app.get("/")
-async def root():
-    return {"message": "WhatsApp Webhook is running!"}
-
-async def cleanup_old_files():
-    """Remove files older than FILE_RETENTION_HOURS"""
-    while True:
-        try:
-            now = datetime.now()
-            for filename in os.listdir("downloads"):
-                file_path = os.path.join("downloads", filename)
-                file_modified = datetime.fromtimestamp(os.path.getmtime(file_path))
-                if now - file_modified > timedelta(hours=FILE_RETENTION_HOURS):
-                    try:
-                        os.remove(file_path)
-                        print(f"Removed old file: {filename}")
-                    except Exception as e:
-                        print(f"Error removing file {filename}: {str(e)}")
-        except Exception as e:
-            print(f"Error in cleanup: {str(e)}")
-        await asyncio.sleep(3600)  # Run every hour
+# Startup event for background tasks
+from app.cleanup import cleanup_old_files
 
 @app.on_event("startup")
 async def startup_event():
-    """Run startup tasks"""
     print("\nServer Configuration:")
     print(f"BASE_URL: {BASE_URL}")
     print(f"WHATSAPP_API_URL: {WHATSAPP_API_URL}")
