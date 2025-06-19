@@ -18,8 +18,11 @@ def upload_media(file_path: str):
         print(f"🌐 Upload URL: {url}")
         
         with open(file_path, "rb") as file:
+            # Get filename for proper MIME type detection
+            filename = os.path.basename(file_path)
+            
             files = {
-                "file": file,
+                "file": (filename, file, "video/mp4"),  # Specify filename, file object, and MIME type
                 "messaging_product": (None, "whatsapp")
             }
             
