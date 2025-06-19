@@ -1,13 +1,3 @@
-import os
-
-# If CLOUDINARY_URL is not set, construct it from individual vars
-if not os.getenv("CLOUDINARY_URL"):
-    cloud_name = os.getenv("CLOUDINARY_CLOUD_NAME")
-    api_key = os.getenv("CLOUDINARY_API_KEY")
-    api_secret = os.getenv("CLOUDINARY_API_SECRET")
-    if cloud_name and api_key and api_secret:
-        os.environ["CLOUDINARY_URL"] = f"cloudinary://{api_key}:{api_secret}@{cloud_name}"
-
 import cloudinary
 import cloudinary.uploader
 import cloudinary.api
