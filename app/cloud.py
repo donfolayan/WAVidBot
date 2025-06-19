@@ -1,14 +1,21 @@
+import os
+
+# If CLOUDINARY_URL is not set, construct it from individual vars
+if not os.getenv("CLOUDINARY_URL"):
+    cloud_name = os.getenv("CLOUDINARY_CLOUD_NAME")
+    api_key = os.getenv("CLOUDINARY_API_KEY")
+    api_secret = os.getenv("CLOUDINARY_API_SECRET")
+    if cloud_name and api_key and api_secret:
+        os.environ["CLOUDINARY_URL"] = f"cloudinary://{api_key}:{api_secret}@{cloud_name}"
+
 import cloudinary
 import cloudinary.uploader
 import cloudinary.api
-from config import CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET, CLOUDINARY_RETENTION_HOURS
+from config import CLOUDINARY_RETENTION_HOURS
 from datetime import datetime, timedelta
 
-cloudinary.config(
-    cloud_name=CLOUDINARY_CLOUD_NAME,
-    api_key=CLOUDINARY_API_KEY,
-    api_secret=CLOUDINARY_API_SECRET
-)
+cloudinary.config(secure=True)
+print("Cloudinary config:", cloudinary.config().cloud_name, cloudinary.config().api_key)
 
 def upload_to_cloudinary(file_path, folder="wa-downloads"):
     """Uploads a file to Cloudinary and returns the URL and public_id."""
