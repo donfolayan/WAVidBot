@@ -9,7 +9,7 @@ def upload_media(file_path: str):
         file_size = os.path.getsize(file_path)
         print(f"File size: {file_size / (1024*1024):.2f} MB")
         
-        url = f"{WHATSAPP_API_URL}/media"
+        url = f"{WHATSAPP_API_URL}/{PHONE_NUMBER_ID}/media"
         headers = {
             "Authorization": f"Bearer {WHATSAPP_TOKEN}",
             "Content-Type": "application/json"
@@ -38,7 +38,7 @@ def upload_media(file_path: str):
 def send_message(to: str, message: str):
     """Send a text message via WhatsApp"""
     try:
-        url = f"{WHATSAPP_API_URL}/messages"
+        url = f"{WHATSAPP_API_URL}/{PHONE_NUMBER_ID}/messages"
         headers = {
             "Authorization": f"Bearer {WHATSAPP_TOKEN}",
             "Content-Type": "application/json"
@@ -69,7 +69,7 @@ async def send_video(to: str, video_path: str):
         
         print(f"Video uploaded successfully with media_id: {media_id}")
         
-        url = f"{WHATSAPP_API_URL}/messages"
+        url = f"{WHATSAPP_API_URL}/{PHONE_NUMBER_ID}/messages"
         headers = {
             "Authorization": f"Bearer {WHATSAPP_TOKEN}",
             "Content-Type": "application/json"

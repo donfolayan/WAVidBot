@@ -17,24 +17,26 @@ router = APIRouter()
 class TestDownloadRequest(BaseModel):
     url: str
     
-    class Config:
-        schema_extra = {
+    model_config = {
+        "json_schema_extra": {
             "example": {
                 "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
             }
         }
+    }
 
 class TestDownloadResponse(BaseModel):
     local_path: Optional[str]
     file_size_mb: Optional[float]
     
-    class Config:
-        schema_extra = {
+    model_config = {
+        "json_schema_extra": {
             "example": {
                 "local_path": "downloads/video_123.mp4",
                 "file_size_mb": 15.5
             }
         }
+    }
 
 class WebhookResponse(BaseModel):
     status: str
