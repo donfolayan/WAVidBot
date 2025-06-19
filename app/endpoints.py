@@ -77,18 +77,29 @@ async def handle_message_update(value):
                         local_path, file_size = await download_video(url, youtube_cookies_path, facebook_cookies_path)
                         if not local_path or not os.path.exists(local_path):
                             print(f"Failed to download video from URL: {url}")
-                            send_message(from_number, "❌ Could not download video. For Facebook videos, please make sure:\n\n1. The video is public\n2. You're sharing the direct video URL\n3. The video hasn't been deleted")
+                            # Check if it's a Facebook checkpoint issue
+                            if "checkpoint" in url.lower() or "facebook.com/checkpoint" in url.lower():
+                                send_message(from_number, "❌ Facebook security checkpoint detected. This video requires authentication.\n\nPlease try:\n• Making sure the video is public\n• Using a direct video link instead of a share link\n• Checking if the video is still available")
+                            else:
+                                send_message(from_number, "❌ Could not download video. For Facebook videos, please make sure:\n\n1. The video is public\n2. You're sharing the direct video URL\n3. The video hasn't been deleted")
                             return
                         print(f"Downloaded file: {local_path} ({file_size:.2f} MB)")
                         cloudinary_url = None
+                        video_sent_to_chat = False
+                        
                         if file_size < 16:
+                            print(f"Video is {file_size:.2f} MB - attempting to send directly to chat...")
                             # Upload to Cloudinary in parallel
                             upload_task = asyncio.create_task(async_upload_to_cloudinary(local_path))
                             try:
                                 await send_video(from_number, local_path)
+                                video_sent_to_chat = True
+                                print(f"✅ Video sent successfully to chat!")
                                 send_message(from_number, "🎥 Here's your video! Uploading to Cloudinary for a shareable link...")
                             except Exception as e:
-                                print(f"Error sending video directly: {str(e)}")
+                                print(f"❌ Error sending video directly: {str(e)}")
+                                send_message(from_number, f"⚠️ Could not send video directly ({file_size:.2f} MB). Uploading to Cloudinary...")
+                            
                             # Wait for Cloudinary upload to finish
                             try:
                                 cloudinary_url, _ = await upload_task
@@ -97,6 +108,7 @@ async def handle_message_update(value):
                                 print(f"Cloudinary upload failed: {str(e)}")
                                 cloudinary_url = None
                         else:
+                            print(f"Video is {file_size:.2f} MB - too large for direct chat, uploading to Cloudinary only...")
                             # Only upload to Cloudinary
                             try:
                                 cloudinary_url, _ = await async_upload_to_cloudinary(local_path)
@@ -106,16 +118,27 @@ async def handle_message_update(value):
                             except Exception as e:
                                 print(f"Cloudinary upload failed: {str(e)}")
                                 cloudinary_url = None
+                        
                         # Always send Cloudinary link if available
                         if cloudinary_url:
-                            message = f"☁️ Cloudinary Link:\n{cloudinary_url}"
+                            if video_sent_to_chat:
+                                message = f"☁️ Cloudinary Link ({file_size:.2f} MB):\n{cloudinary_url}"
+                            else:
+                                message = f"☁️ Cloudinary Link ({file_size:.2f} MB):\n{cloudinary_url}\n\nNote: Video was too large to send directly in chat."
                             send_message(from_number, message)
                         else:
-                            send_message(from_number, "❌ Error: Could not upload to Cloudinary.")
+                            if video_sent_to_chat:
+                                send_message(from_number, "✅ Video sent to chat! (Cloudinary upload failed)")
+                            else:
+                                send_message(from_number, "❌ Error: Could not upload to Cloudinary.")
                         return
                     except Exception as e:
                         print(f"Error downloading video: {str(e)}")
-                        send_message(from_number, "❌ Error downloading video. Please check if the video is accessible.")
+                        error_msg = str(e).lower()
+                        if "checkpoint" in error_msg or "unsupported url" in error_msg:
+                            send_message(from_number, "❌ Facebook security checkpoint detected. This video requires authentication.\n\nPlease try:\n• Making sure the video is public\n• Using a direct video link instead of a share link\n• Checking if the video is still available")
+                        else:
+                            send_message(from_number, "❌ Error downloading video. Please check if the video is accessible.")
                         return
                 else:
                     help_message = """👋 Welcome to WA Video Downloader!
