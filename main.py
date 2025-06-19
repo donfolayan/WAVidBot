@@ -807,6 +807,22 @@ async def direct_download(filename: str):
         )
     return {"error": "File not found"}, 404
 
+@app.get("/terms", response_class=HTMLResponse)
+async def terms_page():
+    terms_path = os.path.join("legal", "terms.html")
+    if os.path.exists(terms_path):
+        with open(terms_path, encoding="utf-8") as f:
+            return HTMLResponse(content=f.read())
+    return {"error": "Terms and Conditions not found"}, 404
+
+@app.get("/privacy", response_class=HTMLResponse)
+async def privacy_page():
+    privacy_path = os.path.join("legal", "privacy.html")
+    if os.path.exists(privacy_path):
+        with open(privacy_path, encoding="utf-8") as f:
+            return HTMLResponse(content=f.read())
+    return {"error": "Privacy Policy not found"}, 404
+
 # Add a test endpoint
 @app.get("/")
 async def root():
