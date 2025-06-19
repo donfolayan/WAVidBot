@@ -7,7 +7,6 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 
 cloudinary.config(secure=True)
-print("Cloudinary config:", cloudinary.config().cloud_name, cloudinary.config().api_key)
 
 executor = ThreadPoolExecutor()
 
