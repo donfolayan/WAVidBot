@@ -10,10 +10,8 @@ from config import FFMPEG_PATH, CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUD
 # Import Cloudinary upload if available
 try:
     from app.cloud import upload_to_cloudinary
-    CLOUDINARY_AVAILABLE = all([CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET])
 except ImportError:
     upload_to_cloudinary = None
-    CLOUDINARY_AVAILABLE = False
 
 def resolve_facebook_share(url, cookies_path=None):
     headers = {
@@ -203,21 +201,29 @@ async def download_video(url: str, YOUTUBE_COOKIES_PATH=None, FACEBOOK_COOKIES_P
         print(f"Error downloading video: {str(e)}")
         return None, None, None
     # If Cloudinary is available, upload and return URLs
-    if CLOUDINARY_AVAILABLE and upload_to_cloudinary:
+    if upload_to_cloudinary:
         try:
             print("Uploading to Cloudinary...")
             small_url, medium_url, original_url = None, None, None
             if small_path and os.path.exists(small_path):
+                print(f"Uploading small: {small_path}")
                 small_url, _ = upload_to_cloudinary(small_path)
+                print(f"Cloudinary small_url: {small_url}")
                 os.remove(small_path)
             if medium_path and os.path.exists(medium_path):
+                print(f"Uploading medium: {medium_path}")
                 medium_url, _ = upload_to_cloudinary(medium_path)
+                print(f"Cloudinary medium_url: {medium_url}")
                 os.remove(medium_path)
             if original_path and os.path.exists(original_path):
+                print(f"Uploading original: {original_path}")
                 original_url, _ = upload_to_cloudinary(original_path)
+                print(f"Cloudinary original_url: {original_url}")
                 os.remove(original_path)
             return small_url, medium_url, original_url
         except Exception as e:
             print(f"Cloudinary upload failed: {e}")
             # Fallback to local
+    else:
+        print("Cloudinary upload not available or not configured.")
     return small_path, medium_path, original_path 
