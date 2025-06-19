@@ -1,10 +1,11 @@
 import os
 from datetime import datetime, timedelta
 import asyncio
-from config import FILE_RETENTION_HOURS
+from config import FILE_RETENTION_HOURS, CLOUDINARY_RETENTION_HOURS
+from app.cloud import cleanup_cloudinary_files
 
 async def cleanup_old_files():
-    """Remove files older than FILE_RETENTION_HOURS"""
+    """Remove files older than FILE_RETENTION_HOURS locally and on Cloudinary"""
     while True:
         try:
             now = datetime.now()
@@ -17,6 +18,9 @@ async def cleanup_old_files():
                         print(f"Removed old file: {filename}")
                     except Exception as e:
                         print(f"Error removing file {filename}: {str(e)}")
+            # Cloudinary cleanup
+            print("Running Cloudinary cleanup task...")
+            cleanup_cloudinary_files(retention_hours=CLOUDINARY_RETENTION_HOURS)
         except Exception as e:
             print(f"Error in cleanup: {str(e)}")
         await asyncio.sleep(3600)  # Run every hour 

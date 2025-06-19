@@ -580,18 +580,15 @@ async def receive_webhook(request: Request):
         return {"status": "error", "message": str(e)}
 
 async def handle_message_update(value):
-    """Handle incoming messages"""
     try:
         messages = value.get("messages", [])
         for message in messages:
             if message.get("type") == "text":
                 from_number = message["from"]
                 message_text = message["text"]["body"]
-                
                 if "http" in message_text.lower():
                     url = message_text.strip()
                     print(f"\nReceived URL: {url}")
-                    
                     # First validate URL
                     is_valid = (
                         url.startswith('https://www.youtube.com') or 
@@ -611,79 +608,69 @@ async def handle_message_update(value):
                     send_message(from_number, "📥 Downloading video...")
                     try:
                         small_path, medium_path, original_path = await download_video(url)
-                        if not original_path:
+                        if not (original_path or medium_path or small_path):
                             print(f"Failed to download video from URL: {url}")
                             send_message(from_number, "❌ Could not download video. For Facebook videos, please make sure:\n\n1. The video is public\n2. You're sharing the direct video URL\n3. The video hasn't been deleted")
                             return
-                            
-                        # Generate download links for all versions
                         links = []
                         print("\nGenerating download links...")
-                        
+                        # Helper to check if value is a URL
+                        def is_url(val):
+                            return isinstance(val, str) and val.startswith("http")
                         # Original quality
-                        if original_path and os.path.exists(original_path):
-                            print(f"Found original file: {original_path}")
-                            filename = os.path.basename(original_path).strip()
-                            encoded_filename = quote(filename)
-                            original_size = os.path.getsize(original_path) / (1024 * 1024)  # MB
-                            original_url = f"{BASE_URL.strip()}/downloads/{encoded_filename}"
-                            link_text = f"📹 Original Quality ({original_size:.1f}MB):\n{original_url}"
-                            links.append(link_text)
-                            print(f"Added original quality link: {link_text}")
-                            
-                            # Try to send directly if under 16MB
-                            if original_size < 16:
-                                print(f"Original file is under 16MB ({original_size:.1f}MB), sending directly...")
-                                try:
-                                    await send_video(from_number, original_path)
-                                    message = "🎥 Here's your video!\n\n📥 You can also download it here:\n\n" + "\n\n".join(links)
-                                    print(f"\nSending message with video and links:\n{message}")
-                                    send_message(from_number, message)
-                                    return
-                                except Exception as e:
-                                    print(f"Error sending video directly: {str(e)}")
-                                    # Continue to send links only
-                        else:
-                            print("Original file not found or doesn't exist")
-                        
+                        if original_path:
+                            if is_url(original_path):
+                                link_text = f"📹 Original Quality:\n{original_path}"
+                                links.append(link_text)
+                            elif os.path.exists(original_path):
+                                filename = os.path.basename(original_path).strip()
+                                encoded_filename = quote(filename)
+                                original_size = os.path.getsize(original_path) / (1024 * 1024)
+                                original_url = f"{BASE_URL.strip()}/downloads/{encoded_filename}"
+                                link_text = f"📹 Original Quality ({original_size:.1f}MB):\n{original_url}"
+                                links.append(link_text)
+                                if original_size < 16:
+                                    print(f"Original file is under 16MB ({original_size:.1f}MB), sending directly...")
+                                    try:
+                                        await send_video(from_number, original_path)
+                                        message = "🎥 Here's your video!\n\n📥 You can also download it here:\n\n" + "\n\n".join(links)
+                                        print(f"\nSending message with video and links:\n{message}")
+                                        send_message(from_number, message)
+                                        return
+                                    except Exception as e:
+                                        print(f"Error sending video directly: {str(e)}")
                         # Medium quality
-                        if medium_path and os.path.exists(medium_path):
-                            print(f"Found medium file: {medium_path}")
-                            filename = os.path.basename(medium_path).strip()
-                            encoded_filename = quote(filename)
-                            medium_size = os.path.getsize(medium_path) / (1024 * 1024)
-                            medium_url = f"{BASE_URL.strip()}/downloads/{encoded_filename}"
-                            link_text = f"📹 Medium Quality - 720p ({medium_size:.1f}MB):\n{medium_url}"
-                            links.append(link_text)
-                            print(f"Added medium quality link: {link_text}")
-                        else:
-                            print("Medium file not found or doesn't exist")
-                        
+                        if medium_path:
+                            if is_url(medium_path):
+                                link_text = f"📹 Medium Quality - 720p:\n{medium_path}"
+                                links.append(link_text)
+                            elif os.path.exists(medium_path):
+                                filename = os.path.basename(medium_path).strip()
+                                encoded_filename = quote(filename)
+                                medium_size = os.path.getsize(medium_path) / (1024 * 1024)
+                                medium_url = f"{BASE_URL.strip()}/downloads/{encoded_filename}"
+                                link_text = f"📹 Medium Quality - 720p ({medium_size:.1f}MB):\n{medium_url}"
+                                links.append(link_text)
                         # Small quality
-                        if small_path and os.path.exists(small_path):
-                            print(f"Found small file: {small_path}")
-                            filename = os.path.basename(small_path).strip()
-                            encoded_filename = quote(filename)
-                            small_size = os.path.getsize(small_path) / (1024 * 1024)
-                            small_url = f"{BASE_URL.strip()}/downloads/{encoded_filename}"
-                            link_text = f"📹 Small Quality - 480p ({small_size:.1f}MB):\n{small_url}"
-                            links.append(link_text)
-                            print(f"Added small quality link: {link_text}")
-                        else:
-                            print("Small file not found or doesn't exist")
-                            
+                        if small_path:
+                            if is_url(small_path):
+                                link_text = f"📹 Small Quality - 480p:\n{small_path}"
+                                links.append(link_text)
+                            elif os.path.exists(small_path):
+                                filename = os.path.basename(small_path).strip()
+                                encoded_filename = quote(filename)
+                                small_size = os.path.getsize(small_path) / (1024 * 1024)
+                                small_url = f"{BASE_URL.strip()}/downloads/{encoded_filename}"
+                                link_text = f"📹 Small Quality - 480p ({small_size:.1f}MB):\n{small_url}"
+                                links.append(link_text)
                         print(f"\nTotal links generated: {len(links)}")
-                        
                         if not links:
                             print("No links were generated!")
                             send_message(from_number, "❌ Error: No download links could be generated. Please try again.")
                             return
-                            
-                        # Send links only message
                         message = "📥 Download options (tap link and click 'Download Video'):\n\n" + "\n\n".join(links)
                         print(f"\nSending message with links:\n{message}")
                         send_message(from_number, message)
-                            
                     except Exception as e:
                         print(f"Error downloading video: {str(e)}")
                         send_message(from_number, "❌ Error downloading video. Please check if the video is accessible.")
@@ -699,7 +686,6 @@ Supported platforms:
 
 Note: Videos under 16MB will be sent directly in chat. For all videos, you'll get download links in different qualities."""
                     send_message(from_number, help_message)
-                    
     except Exception as e:
         print(f"Error in handle_message_update: {str(e)}")
         print(f"Full error details: {type(e).__name__}: {str(e)}")
