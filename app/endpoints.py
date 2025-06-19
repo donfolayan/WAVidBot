@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Request, Response
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from app.video import download_video
 from app.whatsapp import send_message, send_video
 from app.utils import setup_cookies
@@ -41,4 +41,18 @@ async def privacy_page():
 
 @router.get("/")
 async def root():
-    return {"message": "WhatsApp Webhook is running!"} 
+    return {"message": "WhatsApp Webhook is running!"}
+
+# Only enable test endpoint in development
+if os.getenv("DEV_MODE", "").lower() in ("true", "1", "yes"):
+    @router.post("/test-download")
+    async def test_download(request: Request):
+        data = await request.json()
+        url = data.get("url")
+        if not url:
+            return JSONResponse({"error": "No URL provided"}, status_code=400)
+        local_path, file_size = await download_video(url)
+        return {
+            "local_path": local_path,
+            "file_size_mb": file_size
+        } 

@@ -17,15 +17,17 @@ import http.cookiejar
 from app.utils import setup_cookies
 from app.endpoints import router
 from config import BASE_URL
+from app.cloud import async_upload_to_cloudinary
 
 # Load environment variables
 load_dotenv()
 
 # Configuration
-WHATSAPP_TOKEN = os.getenv('WHATSAPP_TOKEN', '').strip()
-print(WHATSAPP_TOKEN)
+WHATSAPP_TOKEN = os.getenv("WHATSAPP_TOKEN")
 if not WHATSAPP_TOKEN:
-    raise ValueError("WHATSAPP_TOKEN environment variable is required")
+    print("ERROR: WHATSAPP_TOKEN not found in environment variables")
+    exit(1)
+print(f"Token loaded: {WHATSAPP_TOKEN[:10]}...{WHATSAPP_TOKEN[-10:] if len(WHATSAPP_TOKEN) > 20 else '***'}")
 
 # Function to create cookies files from environment variables
 def setup_cookies():
@@ -58,11 +60,6 @@ def setup_cookies():
 
 # Create cookies files at startup
 youtube_cookies_path, facebook_cookies_path = setup_cookies()
-
-print("\nDEBUG: Token loaded:", WHATSAPP_TOKEN[:20] + "..." + WHATSAPP_TOKEN[-20:])
-print(f"DEBUG: Full token length: {len(WHATSAPP_TOKEN)}")
-print(f"DEBUG: YouTube cookies path: {youtube_cookies_path}")
-print(f"DEBUG: Facebook cookies path: {facebook_cookies_path}")
 
 app = FastAPI()
 
@@ -599,78 +596,51 @@ async def handle_message_update(value):
                         url.startswith('https://fb.watch') or
                         'facebook.com/share' in url
                     )
-                    
                     if not is_valid:
                         print(f"Invalid URL format: {url}")
                         send_message(from_number, "❌ Please send a valid YouTube or Facebook video URL")
                         return
-                    
                     send_message(from_number, "📥 Downloading video...")
                     try:
-                        small_path, medium_path, original_path = await download_video(url)
-                        if not (original_path or medium_path or small_path):
+                        local_path, file_size = await download_video(url)
+                        if not local_path or not os.path.exists(local_path):
                             print(f"Failed to download video from URL: {url}")
                             send_message(from_number, "❌ Could not download video. For Facebook videos, please make sure:\n\n1. The video is public\n2. You're sharing the direct video URL\n3. The video hasn't been deleted")
                             return
-                        links = []
-                        print("\nGenerating download links...")
-                        # Helper to check if value is a URL
-                        def is_url(val):
-                            return isinstance(val, str) and val.startswith("http")
-                        # Original quality
-                        if original_path:
-                            if is_url(original_path):
-                                link_text = f"📹 Original Quality:\n{original_path}"
-                                links.append(link_text)
-                            elif os.path.exists(original_path):
-                                filename = os.path.basename(original_path).strip()
-                                encoded_filename = quote(filename)
-                                original_size = os.path.getsize(original_path) / (1024 * 1024)
-                                original_url = f"{BASE_URL.strip()}/downloads/{encoded_filename}"
-                                link_text = f"📹 Original Quality ({original_size:.1f}MB):\n{original_url}"
-                                links.append(link_text)
-                                if original_size < 16:
-                                    print(f"Original file is under 16MB ({original_size:.1f}MB), sending directly...")
-                                    try:
-                                        await send_video(from_number, original_path)
-                                        message = "🎥 Here's your video!\n\n📥 You can also download it here:\n\n" + "\n\n".join(links)
-                                        print(f"\nSending message with video and links:\n{message}")
-                                        send_message(from_number, message)
-                                        return
-                                    except Exception as e:
-                                        print(f"Error sending video directly: {str(e)}")
-                        # Medium quality
-                        if medium_path:
-                            if is_url(medium_path):
-                                link_text = f"📹 Medium Quality - 720p:\n{medium_path}"
-                                links.append(link_text)
-                            elif os.path.exists(medium_path):
-                                filename = os.path.basename(medium_path).strip()
-                                encoded_filename = quote(filename)
-                                medium_size = os.path.getsize(medium_path) / (1024 * 1024)
-                                medium_url = f"{BASE_URL.strip()}/downloads/{encoded_filename}"
-                                link_text = f"📹 Medium Quality - 720p ({medium_size:.1f}MB):\n{medium_url}"
-                                links.append(link_text)
-                        # Small quality
-                        if small_path:
-                            if is_url(small_path):
-                                link_text = f"📹 Small Quality - 480p:\n{small_path}"
-                                links.append(link_text)
-                            elif os.path.exists(small_path):
-                                filename = os.path.basename(small_path).strip()
-                                encoded_filename = quote(filename)
-                                small_size = os.path.getsize(small_path) / (1024 * 1024)
-                                small_url = f"{BASE_URL.strip()}/downloads/{encoded_filename}"
-                                link_text = f"📹 Small Quality - 480p ({small_size:.1f}MB):\n{small_url}"
-                                links.append(link_text)
-                        print(f"\nTotal links generated: {len(links)}")
-                        if not links:
-                            print("No links were generated!")
-                            send_message(from_number, "❌ Error: No download links could be generated. Please try again.")
-                            return
-                        message = "📥 Download options (tap link and click 'Download Video'):\n\n" + "\n\n".join(links)
-                        print(f"\nSending message with links:\n{message}")
-                        send_message(from_number, message)
+                        print(f"Downloaded file: {local_path} ({file_size:.2f} MB)")
+                        cloudinary_url = None
+                        if file_size < 16:
+                            # Upload to Cloudinary in parallel
+                            upload_task = asyncio.create_task(async_upload_to_cloudinary(local_path))
+                            try:
+                                await send_video(from_number, local_path)
+                                send_message(from_number, "🎥 Here's your video! Uploading to Cloudinary for a shareable link...")
+                            except Exception as e:
+                                print(f"Error sending video directly: {str(e)}")
+                            # Wait for Cloudinary upload to finish
+                            try:
+                                cloudinary_url, _ = await upload_task
+                                print(f"Cloudinary upload complete: {cloudinary_url}")
+                            except Exception as e:
+                                print(f"Cloudinary upload failed: {str(e)}")
+                                cloudinary_url = None
+                        else:
+                            # Only upload to Cloudinary
+                            try:
+                                cloudinary_url, _ = await async_upload_to_cloudinary(local_path)
+                                print(f"Cloudinary upload complete: {cloudinary_url}")
+                                # Delete local file after upload
+                                os.remove(local_path)
+                            except Exception as e:
+                                print(f"Cloudinary upload failed: {str(e)}")
+                                cloudinary_url = None
+                        # Always send Cloudinary link if available
+                        if cloudinary_url:
+                            message = f"☁️ Cloudinary Link:\n{cloudinary_url}"
+                            send_message(from_number, message)
+                        else:
+                            send_message(from_number, "❌ Error: Could not upload to Cloudinary.")
+                        return
                     except Exception as e:
                         print(f"Error downloading video: {str(e)}")
                         send_message(from_number, "❌ Error downloading video. Please check if the video is accessible.")
@@ -684,7 +654,7 @@ Supported platforms:
 • Facebook
 • YouTube
 
-Note: Videos under 16MB will be sent directly in chat. For all videos, you'll get download links in different qualities."""
+Note: Videos under 16MB will be sent directly in chat. For all videos, you'll get a Cloudinary link."""
                     send_message(from_number, help_message)
     except Exception as e:
         print(f"Error in handle_message_update: {str(e)}")

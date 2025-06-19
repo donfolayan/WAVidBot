@@ -3,9 +3,13 @@ import cloudinary.uploader
 import cloudinary.api
 from config import CLOUDINARY_RETENTION_HOURS
 from datetime import datetime, timedelta
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
 
 cloudinary.config(secure=True)
 print("Cloudinary config:", cloudinary.config().cloud_name, cloudinary.config().api_key)
+
+executor = ThreadPoolExecutor()
 
 def upload_to_cloudinary(file_path, folder="wa-downloads"):
     """Uploads a file to Cloudinary and returns the URL and public_id."""
@@ -18,6 +22,10 @@ def upload_to_cloudinary(file_path, folder="wa-downloads"):
         overwrite=True
     )
     return response.get("secure_url"), response.get("public_id")
+
+async def async_upload_to_cloudinary(file_path, folder="wa-downloads"):
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(executor, upload_to_cloudinary, file_path, folder)
 
 def cleanup_cloudinary_files(folder="wa-downloads", retention_hours=CLOUDINARY_RETENTION_HOURS):
     """Deletes Cloudinary files older than retention_hours in the given folder."""
