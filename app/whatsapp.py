@@ -53,8 +53,8 @@ def send_message(to: str, message: str):
         response = requests.post(url, headers=headers, json=data, timeout=30)
         
         if response.status_code != 200:
-            print(f"Error in send_message: {str(e)}")
-            print(f"Full error details: {type(e).__name__}: {str(e)}")
+            print(f"Error in send_message: HTTP {response.status_code}")
+            print(f"Response: {response.text}")
     except Exception as e:
         print(f"Error in send_message: {str(e)}")
         print(f"Full error details: {type(e).__name__}: {str(e)}")
