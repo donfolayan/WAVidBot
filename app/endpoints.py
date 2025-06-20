@@ -143,13 +143,13 @@ async def handle_message_update(value):
                 else:
                     help_message = """👋 Welcome to WA Video Downloader!
                     
-                    Just send me a Facebook or YouTube video URL, and I'll download it for you.
+Just send me a Facebook or YouTube video URL, and I'll download it for you.
 
-                    Supported platforms:
-                    • Facebook
-                    • YouTube
+Supported platforms:
+• Facebook
+• YouTube
 
-                    Note: Videos under 16MB will be sent directly in chat. For all videos, you'll get a Cloudinary link."""
+Note: Videos under 16MB will be sent directly in chat. For all videos, you'll get a Cloudinary link."""
                     send_message(from_number, help_message)
     except Exception as e:
         print(f"Error in handle_message_update: {str(e)}")
