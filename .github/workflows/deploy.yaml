@@ -41,7 +41,7 @@ jobs:
             docker login -u ${{ secrets.DOCKERHUB_USERNAME }} -p ${{ secrets.DOCKERHUB_TOKEN }}
             docker pull ${{ secrets.DOCKERHUB_USERNAME }}/${{ secrets.DOCKERHUB_REPO }}:latest
             echo "${{ secrets.ENV_FILE }}" > .env
-            docker run -d --name ${{ secrets.DOCKERHUB_REPO }} -p 80:8000 \
+            docker run -d --name ${{ secrets.DOCKERHUB_REPO }} -p 8000:8000 \
             --env-file .env \
             ${{ secrets.DOCKERHUB_USERNAME }}/${{ secrets.DOCKERHUB_REPO }}:latest
             rm .env
