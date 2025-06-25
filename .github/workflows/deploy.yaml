@@ -28,3 +28,19 @@ jobs:
           context: .
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/${{ secrets.DOCKERHUB_REPO }}:latest
+
+      - name: SSH and deploy on Oracle VM
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.ORACLE_VM_IP}}
+          username: ${{ secrets.ORACLE_VM_USERNAME }}
+          key: ${{ secrets.ORACLE_VM_SSH_KEY }}
+          script: |
+            docker stop ${{ secrets.DOCKERHUB_REPO }} || true
+            docker rm ${{ secrets.DOCKERHUB_REPO }} || true
+            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/${{ secrets.DOCKERHUB_REPO }}:latest
+            echo "${{ secrets.ENV_FILE }}" > .env
+            docker run -d --name ${{ secrets.DOCKERHUB_REPO }} -p 80:8000 \
+            --env-file .env \
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{ secrets.DOCKERHUB_REPO }}:latest
+            rm .env
