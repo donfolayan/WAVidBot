@@ -87,7 +87,7 @@ async def download_video(url: str, YOUTUBE_COOKIES_PATH=None, FACEBOOK_COOKIES_P
             raise e
     original_opts = {
         'format': 'best[ext=mp4]/bestvideo[ext=mp4]+bestaudio[ext=m4a]/best',
-        'outtmpl': 'downloads/original_%(title)s.%(ext)s',
+        'outtmpl': 'downloads/original_%(id)s.%(ext)s',
         'quiet': False,
         'no_warnings': False,
         'merge_output_format': 'mp4',
