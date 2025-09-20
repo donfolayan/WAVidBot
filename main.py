@@ -74,7 +74,7 @@ app = FastAPI(
     - API documentation is disabled in production (when DEV_MODE=false)
     - Proper CORS configuration for webhook endpoints
     """,
-    version="1.0.0",
+    version="1.0.1",
     contact={
         "name": "WhatsApp Video Downloader",
         "url": "https://github.com/donfolayan/wavidbot",
